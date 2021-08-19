@@ -50,8 +50,8 @@ def get_emoji(bot, message) -> str:
 def user_to_hash(user_id) -> str:
     """Gets the pseudo-unique identifier for a given user.
 
-    :param user: Any user.
-    :type user: discord.User
+    :param user_id: Any user's id.
+    :type user: int
     :return: An identifier that is 18 characters long.
     :rtype: str
     """

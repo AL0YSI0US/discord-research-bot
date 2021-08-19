@@ -2,7 +2,7 @@ from helpers import message_to_embed
 from typing import Generator, Optional
 from discord.channel import TextChannel
 from discord.ext import commands
-from database import is_admin, db
+from database import *
 import discord
 
 class BridgeCog(commands.Cog):
@@ -19,11 +19,25 @@ class BridgeCog(commands.Cog):
             channel = ctx.channel
 
         if group is not None:
-            db.channel(channel=channel).group = group
+            document = Channel(doc_id=ctx.channel.id)
+            document.group = group
+            document.save()
+
+            channels = self.get_channels_in_group(group)
+            await ctx.reply(f'{ctx.channel.mention} is now connected to'
+                f' {len(channels)} other channels in the group **{group}**.')
+
         else: # Delete group.
-            del db.channel(channel=channel).group
-        
-        await ctx.message.add_reaction('👍')
+            document = Channel.get(doc_id=ctx.channel.id)
+            if document is not None:
+                
+                document.delete()
+                await ctx.reply(f'{ctx.channel.mention} is no longer connected'
+                    ' to any other channel.')
+            
+            else: # Channel wasn't set in the first place.
+                await ctx.reply(f'{ctx.channel.mention} is not a bridge.')
+
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -35,18 +49,17 @@ class BridgeCog(commands.Cog):
         embed = message_to_embed(message)
         embed.set_footer(text=f'{group} | {embed.footer.text}')
 
-        async for channel in self.get_channels_in_group(message.channel, group):
+        for document in self.get_channels_in_group(group):
+            channel = await self.bot.fetch_channel(document.doc_id)
             if channel != message.channel:
                 await channel.send(embed=embed)
 
-    async def get_channels_in_group(self, channel, group):
-        # TODO: Remove `channel` from parameter list.
-        results = db.channel(channel=channel).get_channels_in_group(group)
-        for channel_doc in results:
-            yield await channel_doc.fetch(self.bot)
+    def get_channels_in_group(self, group) -> Channel:
+        return Channel.search(where('group') == group)
     
     def get_group(self, channel) -> Optional[str]:
-        return db.channel(channel=channel).group
+        document = Channel.get(doc_id=channel.id)
+        return None if document is None else document.group
 
 def setup(bot):
     cog = BridgeCog(bot)
